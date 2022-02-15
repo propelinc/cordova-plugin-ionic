@@ -132,6 +132,14 @@ class IonicDeployImpl {
     return folder;
   }
 
+  getCurrentAppDir(): string {
+    const prefs = this._savedPreferences;
+    if (prefs.currentVersionId && this._isRunningVersion(prefs.currentVersionId)) {
+      return this.getSnapshotCacheDir(prefs.currentVersionId)
+    }
+    return this.getBundledAppDir();
+  }
+
   private async _savePrefs(prefs: ISavedPreferences): Promise<ISavedPreferences> {
     return new Promise<ISavedPreferences>(async (resolve, reject) => {
       try {
@@ -223,9 +231,14 @@ class IonicDeployImpl {
     const prefs = this._savedPreferences;
     if (prefs.availableUpdate && prefs.availableUpdate.state === UpdateState.Available) {
       const { fileBaseUrl, manifestJson } = await this._fetchManifest(prefs.availableUpdate.url);
-      const diffedManifest = await this._diffManifests(manifestJson);
-      await this.prepareUpdateDirectory(prefs.availableUpdate.versionId);
-      await this._downloadFilesFromManifest(fileBaseUrl, diffedManifest,  prefs.availableUpdate.versionId, progress);
+      try {
+        const { additions, removals } = await this._diffManifests(manifestJson);
+        await this.preparePartialUpdateDirectory(prefs.availableUpdate.versionId, removals);
+        await this._downloadFilesFromManifest(fileBaseUrl, additions,  prefs.availableUpdate.versionId, progress);
+      } catch (e) {
+        await this.prepareEmptyUpdateDirectory(prefs.availableUpdate.versionId);
+        await this._downloadFilesFromManifest(fileBaseUrl, manifestJson,  prefs.availableUpdate.versionId, progress);
+      }
       prefs.availableUpdate.state = UpdateState.Pending;
       await this._savePrefs(prefs);
       return true;
@@ -291,22 +304,32 @@ class IonicDeployImpl {
   }
 
   private async _diffManifests(newManifest: ManifestFileEntry[]) {
-    try {
-      const manifestResp = await fetch(`${WEBVIEW_SERVER_URL}/${this.MANIFEST_FILE}`);
-      const bundledManifest: ManifestFileEntry[] = await manifestResp.json();
-      const bundleManifestStrings = bundledManifest.map(entry => JSON.stringify(entry));
-      return newManifest.filter(entry => bundleManifestStrings.indexOf(JSON.stringify(entry)) === -1);
-    } catch (e) {
-      return newManifest;
-    }
+    const manifestResp = await fetch(`${WEBVIEW_SERVER_URL}/${this.MANIFEST_FILE}`);
+    const currentManifest: ManifestFileEntry[] = await manifestResp.json();
+    const currentManifestStrings = currentManifest.map(entry => JSON.stringify(entry));
+    const newManifestStrings = newManifest.map(entry => JSON.stringify(entry));
+    const additions = newManifest.filter(entry => currentManifestStrings.indexOf(JSON.stringify(entry)) === -1);
+    const removals = currentManifest.filter(entry => newManifestStrings.indexOf(JSON.stringify(entry)) === -1);
+    return { additions, removals };
   }
 
-  private async prepareUpdateDirectory(versionId: string) {
+  private async preparePartialUpdateDirectory(versionId: string, removals: ManifestFileEntry[]) {
+    await this.prepareEmptyUpdateDirectory(versionId);
+    await this._copyCurrentAppDir(versionId);
+    for (const file of removals) {
+      try {
+        const filePath = Path.join(this.getSnapshotCacheDir(versionId), file.href);
+        await this._fileManager.remove(filePath);
+      } catch (e) {
+        console.log('No file found to delete');
+      }
+    }
+    console.log('Copied current app resources');
+  }
+
+  private async prepareEmptyUpdateDirectory(versionId: string) {
     await this._cleanSnapshotDir(versionId);
     console.log('Cleaned version directory');
-
-    await this._copyBaseAppDir(versionId);
-    console.log('Copied base app resources');
   }
 
   async extractUpdate(progress?: CallbackFunction<number>): Promise<boolean> {
@@ -430,11 +453,11 @@ class IonicDeployImpl {
     }
   }
 
-  private async _copyBaseAppDir(versionId: string) {
-    const timer = new Timer('CopyBaseApp');
+  private async _copyCurrentAppDir(versionId: string) {
+    const timer = new Timer('CopyCurrentApp');
     await this._fileManager.copyTo({
       source: {
-        path: this.getBundledAppDir(),
+        path: this.getCurrentAppDir(),
         directory: 'APPLICATION',
       },
       target: this.getSnapshotCacheDir(versionId),
