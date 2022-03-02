@@ -17,6 +17,11 @@ const channel = cordova.require('cordova/channel');
 channel.createSticky('onIonicProReady');
 channel.waitForInitialization('onIonicProReady');
 
+const fireReady = async () => {
+  channel.onIonicProReady.fire();
+  window.dispatchEvent(new Event('appflow.ready'));
+}
+
 declare const Ionic: any;
 declare const WEBVIEW_SERVER_URL: string;
 declare const Capacitor: any;
@@ -365,7 +370,7 @@ class IonicDeployImpl {
       if (await this._isRunningVersion(prefs.currentVersionId)) {
         console.log(`Already running version ${prefs.currentVersionId}`);
         await this._savePrefs(prefs);
-        channel.onIonicProReady.fire();
+        await fireReady();
         Ionic.WebView.persistServerBasePath();
         await this.cleanupVersions();
         return false;
@@ -374,7 +379,7 @@ class IonicDeployImpl {
       // Is the current version on the device?
       if (!(prefs.currentVersionId in prefs.updates)) {
         console.error(`Missing version ${prefs.currentVersionId}`);
-        channel.onIonicProReady.fire();
+        await fireReady();
         return false;
       }
 
@@ -384,7 +389,7 @@ class IonicDeployImpl {
       return true;
     }
 
-    channel.onIonicProReady.fire();
+    await fireReady();
     return false;
   }
 
@@ -613,7 +618,7 @@ class IonicDeploy implements IDeployPluginAPI {
     this.parent = parent;
     this.delegate = this.initialize();
     this.fetchIsAvailable = typeof(fetch) === 'function';
-    document.addEventListener('deviceready', this.onLoad.bind(this));
+    // document.addEventListener('deviceready', this.onLoad.bind(this));
   }
 
   async initialize() {
@@ -629,7 +634,7 @@ class IonicDeploy implements IDeployPluginAPI {
         disabledMessage = 'Fetch is unavailable so ' + disabledMessage;
       }
       console.warn(disabledMessage);
-      channel.onIonicProReady.fire();
+      await fireReady();
     } else {
       await delegate._handleInitialPreferenceState();
     }
@@ -665,7 +670,7 @@ class IonicDeploy implements IDeployPluginAPI {
           }, 0);
         });
       } catch (e) {
-        channel.onIonicProReady.fire();
+        await fireReady();
         reject(e.message);
       }
     });

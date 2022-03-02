@@ -11,6 +11,13 @@ declare global {
 export interface DeployPluginAPI {
 
   /**
+   * @description Call this function after your app has finished configuring appflow.
+   *
+   * Added by propel.
+   */
+  onLoad(): Promise<void>;
+
+  /**
    * @description Update the default configuration for the plugin on the current device. The new configuration will be persisted across app close and binary updates.
    *
    * @since v5.0.0
