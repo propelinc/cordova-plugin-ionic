@@ -132,12 +132,19 @@ class IonicDeployImpl {
     return folder;
   }
 
-  getCurrentAppDir(): string {
+  getCurrentAppDir(): { path: string, directory: string } {
     const prefs = this._savedPreferences;
     if (prefs.currentVersionId && this._isRunningVersion(prefs.currentVersionId)) {
-      return this.getSnapshotCacheDir(prefs.currentVersionId)
+      return {
+        path:  Path.join(this.SNAPSHOT_CACHE, prefs.currentVersionId),
+        directory: 'DATA',
+      }
     }
-    return this.getBundledAppDir();
+
+    return {
+      path: this.getBundledAppDir(),
+      directory: 'APPLICATION',
+    }
   }
 
   private async _savePrefs(prefs: ISavedPreferences): Promise<ISavedPreferences> {
@@ -240,6 +247,8 @@ class IonicDeployImpl {
         await this.preparePartialUpdateDirectory(prefs.availableUpdate.versionId, removals);
         await this._downloadFilesFromManifest(fileBaseUrl, additions,  prefs.availableUpdate.versionId, progress);
       } catch (e) {
+        console.info('Error downloading a partial update. Downloading full update instead.');
+        console.error(e);
         await this.prepareEmptyUpdateDirectory(prefs.availableUpdate.versionId);
         await this._downloadFilesFromManifest(fileBaseUrl, manifestJson,  prefs.availableUpdate.versionId, progress);
       }
@@ -459,13 +468,10 @@ class IonicDeployImpl {
 
   private async _copyCurrentAppDir(versionId: string) {
     const timer = new Timer('CopyCurrentApp');
-    await this._fileManager.copyTo({
-      source: {
-        path: this.getCurrentAppDir(),
-        directory: 'APPLICATION',
-      },
-      target: this.getSnapshotCacheDir(versionId),
-    });
+    const source = this.getCurrentAppDir();
+    const target = this.getSnapshotCacheDir(versionId);
+    console.log('Copying current app', source, target);
+    await this._fileManager.copyTo({ source, target });
     timer.end();
   }
 
