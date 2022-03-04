@@ -132,21 +132,6 @@ class IonicDeployImpl {
     return folder;
   }
 
-  getCurrentAppDir(): { path: string, directory: string } {
-    const prefs = this._savedPreferences;
-    if (prefs.currentVersionId && this._isRunningVersion(prefs.currentVersionId)) {
-      return {
-        path:  Path.join(this.SNAPSHOT_CACHE, prefs.currentVersionId),
-        directory: 'DATA',
-      }
-    }
-
-    return {
-      path: this.getBundledAppDir(),
-      directory: 'APPLICATION',
-    }
-  }
-
   private async _savePrefs(prefs: ISavedPreferences): Promise<ISavedPreferences> {
     return new Promise<ISavedPreferences>(async (resolve, reject) => {
       try {
@@ -468,7 +453,7 @@ class IonicDeployImpl {
 
   private async _copyCurrentAppDir(versionId: string) {
     const timer = new Timer('CopyCurrentApp');
-    const source = this.getCurrentAppDir();
+    const source = { path: this.getBundledAppDir(), directory: 'APPLICATION' };
     const target = this.getSnapshotCacheDir(versionId);
     console.log('Copying current app', source, target);
     await this._fileManager.copyTo({ source, target });
