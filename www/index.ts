@@ -20,6 +20,11 @@ const deviceready = new Promise<IDeployPluginAPI>((resolve, rejects) => {
 
 export class DeployClass implements IDeployPluginAPI {
 
+  async onLoad() {
+    const deploy = await deviceready;
+    return deploy.onLoad();
+  }
+
   async configure(config: IDeployConfig) {
     const deploy = await deviceready;
     return deploy.configure(config);
