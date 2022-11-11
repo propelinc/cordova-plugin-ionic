@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     IonicCordova: IPluginBaseAPI;
+    prepareShutdown?: () => Promise<void>;
   }
   type IDeployPluginAPI = DeployPluginAPI;
 }

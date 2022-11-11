@@ -356,6 +356,11 @@ class IonicDeployImpl {
       }
 
       // Reload the webview
+      if (window.prepareShutdown) {
+        console.info('Wait for app shutdown before reloading');
+        await window.prepareShutdown();
+      }
+      
       const newLocation = this.getSnapshotCacheDir(prefs.currentVersionId);
       Ionic.WebView.setServerBasePath(newLocation);
       return true;
